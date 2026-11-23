@@ -151,6 +151,7 @@ private fun VpsAdminRoot(vm: VpsViewModel = viewModel()) {
                     onCheckUpdate = { vm.checkForUpdate(silent = false) },
                     onSetBuckets = vm::setBuckets,
                     onRestartScheduler = vm::restartScheduler,
+                    onRepackNx6r = vm::repackNx6r,
                 )
             }
         }

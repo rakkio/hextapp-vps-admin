@@ -25,6 +25,7 @@ fun ControlScreen(
     onCheckUpdate: () -> Unit,
     onSetBuckets: (vpsId: String, bucketOrder: String) -> Unit,
     onRestartScheduler: (vpsId: String) -> Unit,
+    onRepackNx6r: (vpsId: String, platform: String, limit: Int) -> Unit,
 ) {
     var baseUrl by remember(config.baseUrl) { mutableStateOf(config.baseUrl) }
     var token by remember(config.token) { mutableStateOf(config.token) }
@@ -127,6 +128,22 @@ fun ControlScreen(
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningAmber),
                             ) {
                                 Text("Reiniciar")
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { onRepackNx6r(node.id, "ANDROID", 20) },
+                                enabled = !isSubmitting,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("NX6R Android (20)")
+                            }
+                            OutlinedButton(
+                                onClick = { onRepackNx6r(node.id, "WINDOWS", 10) },
+                                enabled = !isSubmitting,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("NX6R PC (10)")
                             }
                         }
                     }

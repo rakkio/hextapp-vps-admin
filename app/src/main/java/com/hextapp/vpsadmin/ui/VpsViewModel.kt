@@ -248,6 +248,18 @@ class VpsViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun repackNx6r(targetVps: String, platform: String = "ANDROID", limit: Int = 20) {
+        sendCommand(
+            targetVps,
+            "repack_nx6r",
+            buildJsonObject {
+                put("platform", platform)
+                put("limit", limit)
+            },
+            "Conversión NX6R ($platform, máx $limit) enviada a $targetVps",
+        )
+    }
+
     private fun sendCommand(
         targetVps: String,
         action: String,
