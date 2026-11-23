@@ -88,6 +88,7 @@ data class PipelineCommand(
     val action: String = "",
     val status: String = "pending",
     val error: String? = null,
+    val result: String? = null,
     val createdAt: String = "",
 )
 
@@ -109,9 +110,28 @@ data class SearchResponse(
 )
 
 @Serializable
+data class CatalogItemsResponse(
+    val success: Boolean = false,
+    val data: List<CatalogItem> = emptyList(),
+    val error: String? = null,
+)
+
+@Serializable
+data class CatalogItem(
+    @SerialName("_id") val id: String = "",
+    val title: String = "",
+    val platform: String = "",
+    val contentType: String = "",
+    val sizeBytes: Long = 0L,
+    val owner: String = "",
+    val createdAt: String? = null,
+)
+
+@Serializable
 data class SearchCandidate(
     val name: String = "",
     val source: String = "",
+    val sourceGroup: String = "general",
     val seeders: Int = 0,
     val size: String = "",
     val url: String? = null,

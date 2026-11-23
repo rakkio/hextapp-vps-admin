@@ -11,7 +11,7 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,10 +33,14 @@ fun MonitorScreen(
     onCancelTorrent: (vpsId: String, hash: String) -> Unit,
     onPurgeStalled: (vpsId: String) -> Unit,
     onRunNow: (vpsId: String) -> Unit,
+    onRunAll: () -> Unit,
+    onPurgeAll: () -> Unit,
+    onClearFailedDb: () -> Unit,
 ) {
     val nodes = status?.nodes.orEmpty()
     val uploadedCount = status?.seenCounts?.get("uploaded") ?: 0
     val failedCount = status?.seenCounts?.get("failed") ?: 0
+    var torrentQuery by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -54,6 +58,45 @@ fun MonitorScreen(
             }
         }
 
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilledTonalButton(
+                    onClick = onRunAll,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    Text("Ejecutar todos", maxLines = 1, style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = onPurgeAll,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    Text("Purgar todos", maxLines = 1, style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = onClearFailedDb,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    Text("Limpiar fallos", maxLines = 1, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+
+        item {
+            OutlinedTextField(
+                value = torrentQuery,
+                onValueChange = { torrentQuery = it },
+                label = { Text("Filtrar torrents activos") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
         if (nodes.isEmpty()) {
             item {
                 Card(
@@ -69,8 +112,14 @@ fun MonitorScreen(
             }
         } else {
             items(nodes, key = { it.id }) { node ->
+                val filteredTorrents = if (torrentQuery.isBlank()) {
+                    node.torrents
+                } else {
+                    node.torrents.filter { it.name.contains(torrentQuery, ignoreCase = true) }
+                }
                 VpsNodeCard(
-                    node = node,
+                    node = node.copy(torrents = filteredTorrents),
+                    totalDlKBs = node.torrents.sumOf { it.dlSpeedKBs },
                     onCancelTorrent = { hash -> onCancelTorrent(node.id, hash) },
                     onPurgeStalled = { onPurgeStalled(node.id) },
                     onRunNow = { onRunNow(node.id) },
@@ -103,6 +152,7 @@ private fun SummaryChip(
 @Composable
 private fun VpsNodeCard(
     node: VpsNode,
+    totalDlKBs: Int = 0,
     onCancelTorrent: (String) -> Unit,
     onPurgeStalled: () -> Unit,
     onRunNow: () -> Unit,
@@ -159,6 +209,22 @@ private fun VpsNodeCard(
             MetricBar("CPU", "${node.cpuPercent}%", cpuFrac)
             MetricBar("RAM", "${node.memUsedMB} / ${node.memTotalMB} MB", ramFrac)
             MetricBar("Disco", "${node.diskUsedGB} / ${node.diskTotalGB} GB", diskFrac)
+            val dlLabel = if (totalDlKBs >= 1024) "${"%.1f".format(totalDlKBs / 1024f)} MB/s" else "$totalDlKBs KB/s"
+            Text(
+                text = "IA: ${node.ollamaHost.ifBlank { "local" }} • NX6R: ${node.nx6rProfile} • DL: $dlLabel",
+                style = MaterialTheme.typography.labelSmall,
+                color = PrimaryCyan,
+            )
+            node.nx6rTelemetry.lastOrNull()?.let { tel ->
+                val savedPct = if (tel.rawBytes > 0) ((tel.rawBytes - tel.outBytes) * 100.0 / tel.rawBytes) else 0.0
+                Text(
+                    text = "Último NX6R: ${tel.file} (${"%.1f".format(savedPct)}% ahorro, ${tel.chunks} chunks)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = SecondaryEmerald,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
 
             if (node.ollamaModel.isNotBlank()) {
                 Text(

@@ -22,13 +22,17 @@ fun AddJobScreen(
     isSearching: Boolean,
     hasSearched: Boolean,
     searchResults: List<SearchCandidate>,
-    onSearch: (title: String, platform: String) -> Unit,
+    onSearch: (title: String, platform: String, sourceGroup: String) -> Unit,
     onClearSearch: () -> Unit,
+    onSubmitBatch: (rawLines: String, platform: String, contentType: String, targetVps: String) -> Unit,
     onSubmit: (url: String, magnet: String, title: String, platform: String, contentType: String, targetVps: String) -> Unit,
 ) {
     var url by remember { mutableStateOf("") }
     var magnet by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
+    var batchMode by remember { mutableStateOf(false) }
+    var batchText by remember { mutableStateOf("") }
+    var sourceGroup by remember { mutableStateOf("all") }
     var platform by remember { mutableStateOf("auto") }
     var contentType by remember { mutableStateOf("auto") }
     var targetVps by remember { mutableStateOf("auto") }
@@ -36,6 +40,12 @@ fun AddJobScreen(
     val platforms = listOf("auto" to "Auto", "windows" to "Windows", "macos" to "macOS", "android" to "Android", "cross-platform" to "Retro")
     val types = listOf("auto" to "Auto", "game" to "Juego", "app" to "App", "rom" to "ROM")
     val vpsList = listOf("auto" to "Auto", "vps1" to "VPS 1", "vps2" to "VPS 2", "vps3" to "VPS 3")
+    val sourceGroups = listOf(
+        "all" to "Todas (16)",
+        "general" to "Generalistas",
+        "spanish" to "Español",
+        "specialized" to "Especializadas",
+    )
 
     Column(
         modifier = Modifier
@@ -116,9 +126,49 @@ fun AddJobScreen(
             }
         }
 
+        Text("Fuentes de búsqueda", style = MaterialTheme.typography.labelMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            sourceGroups.forEach { (key, label) ->
+                FilterChip(
+                    selected = sourceGroup == key,
+                    onClick = { sourceGroup = key },
+                    label = { Text(label) },
+                )
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            FilterChip(
+                selected = batchMode,
+                onClick = { batchMode = !batchMode },
+                label = { Text("Cola por lotes (múltiples líneas)") },
+            )
+        }
+
+        if (batchMode) {
+            OutlinedTextField(
+                value = batchText,
+                onValueChange = { batchText = it },
+                label = { Text("Pega una URL, magnet o título por línea") },
+                minLines = 4,
+                maxLines = 8,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = {
+                    onSubmitBatch(batchText, platform, contentType, targetVps)
+                    batchText = ""
+                },
+                enabled = !isSubmitting && batchText.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+            ) {
+                Text("Encolar lote completo")
+            }
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
-                onClick = { onSearch(title.trim(), platform) },
+                onClick = { onSearch(title.trim(), platform, sourceGroup) },
                 enabled = !isSearching && !isSubmitting && title.isNotBlank(),
                 modifier = Modifier.weight(1f).height(48.dp),
             ) {
@@ -169,7 +219,7 @@ fun AddJobScreen(
             if (searchResults.isEmpty()) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Text(
-                        text = "No se encontro nada en repack.info, 1337x ni TPB para \"$title\". Prueba con otro nombre o pega un magnet/URL directo.",
+                        text = "No se encontró nada en los portales seleccionados para \"$title\". Prueba con otro nombre o pega un magnet/URL directo.",
                         modifier = Modifier.padding(14.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = WarningAmber,

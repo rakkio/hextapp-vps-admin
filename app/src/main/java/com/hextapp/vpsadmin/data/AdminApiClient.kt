@@ -102,11 +102,13 @@ class AdminApiClient {
         config: ConnectionConfig,
         title: String,
         platform: String,
+        sourceGroup: String = "all",
     ): Result<List<SearchCandidate>> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = buildJsonObject {
                 put("title", title)
                 put("platform", platform)
+                put("sourceGroup", sourceGroup)
             }
             val req = Request.Builder()
                 .url("${config.baseUrl}/vps/search")
@@ -138,6 +140,29 @@ class AdminApiClient {
             if (!seenId.isNullOrBlank()) put("seenId", seenId)
             if (!jobId.isNullOrBlank()) put("jobId", jobId)
         },
+    )
+
+    suspend fun fetchCatalogItems(config: ConnectionConfig): Result<List<CatalogItem>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val req = Request.Builder()
+                .url("${config.baseUrl}/vps/items")
+                .header("Authorization", "Bearer ${config.token}")
+                .get()
+                .build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) error("HTTP ${resp.code}: ${body.take(180)}")
+                val parsed = json.decodeFromString<CatalogItemsResponse>(body)
+                if (!parsed.success) error(parsed.error ?: "Error cargando catalogo")
+                parsed.data
+            }
+        }
+    }
+
+    suspend fun deleteCatalogItem(config: ConnectionConfig, id: String): Result<Unit> = postJson(
+        config = config,
+        path = "/vps/items/delete",
+        payload = buildJsonObject { put("id", id) },
     )
 
     private suspend fun postJson(

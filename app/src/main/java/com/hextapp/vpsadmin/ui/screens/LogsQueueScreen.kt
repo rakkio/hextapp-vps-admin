@@ -7,7 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -29,11 +29,25 @@ fun LogsQueueScreen(
     onSelectVps: (String) -> Unit,
     onRetrySeen: (String) -> Unit,
     onRetryJob: (String) -> Unit,
+    onClearAllFailed: () -> Unit,
 ) {
     val nodes = status?.nodes.orEmpty()
-    val currentLogs = nodes.firstOrNull { it.id == selectedVps }?.logs.orEmpty()
+    val currentNode = nodes.firstOrNull { it.id == selectedVps }
+    val currentLogs = currentNode?.logs.orEmpty()
     val jobs = status?.jobs.orEmpty()
     val failedItems = status?.recentFailed.orEmpty()
+    var logLevel by remember { mutableStateOf("ALL") }
+    var logQuery by remember { mutableStateOf("") }
+    val filteredLogs = currentLogs.takeLast(80).filter { line ->
+        val levelMatch = when (logLevel) {
+            "ERROR" -> line.contains("ERROR", ignoreCase = true) || line.contains("Traceback", ignoreCase = true) || line.contains("failed", ignoreCase = true)
+            "WARN" -> line.contains("WARN", ignoreCase = true) || line.contains("stalled", ignoreCase = true)
+            "INFO" -> line.contains("INFO", ignoreCase = true)
+            else -> true
+        }
+        val queryMatch = logQuery.isBlank() || line.contains(logQuery, ignoreCase = true)
+        levelMatch && queryMatch
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -52,6 +66,24 @@ fun LogsQueueScreen(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("ALL", "ERROR", "WARN", "INFO").forEach { lvl ->
+                    FilterChip(
+                        selected = logLevel == lvl,
+                        onClick = { logLevel = lvl },
+                        label = { Text(lvl) },
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            OutlinedTextField(
+                value = logQuery,
+                onValueChange = { logQuery = it },
+                label = { Text("Buscar en logs") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
 
         item {
@@ -61,18 +93,45 @@ fun LogsQueueScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (currentLogs.isEmpty()) {
-                        Text("Sin lineas recientes de scheduler.log", style = MaterialTheme.typography.bodySmall)
+                    if (filteredLogs.isEmpty()) {
+                        Text("Sin líneas coincidentes en scheduler.log", style = MaterialTheme.typography.bodySmall)
                     } else {
-                        currentLogs.takeLast(25).forEach { line ->
+                        filteredLogs.forEach { line ->
+                            val lineColor = when {
+                                line.contains("ERROR", ignoreCase = true) || line.contains("failed", ignoreCase = true) -> DangerRed
+                                line.contains("WARN", ignoreCase = true) -> WarningAmber
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                             Text(
                                 text = line,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
                                 lineHeight = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = lineColor,
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        val nx6rHistory = currentNode?.nx6rTelemetry.orEmpty().reversed()
+        if (nx6rHistory.isNotEmpty()) {
+            item {
+                Text("Telemetría NX6R (${selectedVps.uppercase()})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+            items(nx6rHistory) { tel ->
+                val rawMb = tel.rawBytes / (1024.0 * 1024.0)
+                val outMb = tel.outBytes / (1024.0 * 1024.0)
+                val saved = if (tel.rawBytes > 0) ((tel.rawBytes - tel.outBytes) * 100.0 / tel.rawBytes) else 0.0
+                Surface(color = SurfaceVariantDark, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(tel.file, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            text = "${"%.1f".format(rawMb)} MiB → ${"%.1f".format(outMb)} MiB (${"%.1f".format(saved)}% ahorro) • ${tel.profile} • ${tel.chunks} chunks",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = SecondaryEmerald,
+                        )
                     }
                 }
             }
@@ -117,7 +176,18 @@ fun LogsQueueScreen(
         }
 
         item {
-            Text("Fallos en pipeline_seen (${failedItems.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Fallos en pipeline_seen (${failedItems.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                if (failedItems.isNotEmpty()) {
+                    TextButton(onClick = onClearAllFailed) {
+                        Text("Limpiar todos", color = WarningAmber)
+                    }
+                }
+            }
         }
 
         items(failedItems, key = { it.id }) { item ->

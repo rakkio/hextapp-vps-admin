@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hextapp.vpsadmin.data.AdminApiClient
 import com.hextapp.vpsadmin.data.AvailableUpdate
+import com.hextapp.vpsadmin.data.CatalogItem
 import com.hextapp.vpsadmin.data.ConnectionConfig
 import com.hextapp.vpsadmin.data.SearchCandidate
 import com.hextapp.vpsadmin.data.SettingsStore
@@ -34,6 +35,8 @@ data class DashboardUiState(
     val isSearching: Boolean = false,
     val searchResults: List<SearchCandidate> = emptyList(),
     val hasSearched: Boolean = false,
+    val catalogItems: List<CatalogItem> = emptyList(),
+    val isLoadingCatalog: Boolean = false,
 )
 
 class VpsViewModel(application: Application) : AndroidViewModel(application) {
@@ -177,12 +180,12 @@ class VpsViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(searchResults = emptyList(), hasSearched = false) }
     }
 
-    fun searchReleases(title: String, platform: String) {
+    fun searchReleases(title: String, platform: String, sourceGroup: String = "all") {
         val cfg = _uiState.value.config
         if (!cfg.isConfigured || title.isBlank()) return
         viewModelScope.launch {
             _uiState.update { it.copy(isSearching = true, error = null, hasSearched = false) }
-            api.searchReleases(cfg, title.trim(), platform)
+            api.searchReleases(cfg, title.trim(), platform, sourceGroup)
                 .onSuccess { list ->
                     _uiState.update {
                         it.copy(isSearching = false, searchResults = list, hasSearched = true)
@@ -193,6 +196,45 @@ class VpsViewModel(application: Application) : AndroidViewModel(application) {
                         it.copy(isSearching = false, error = "Error buscando: ${err.message}", hasSearched = true)
                     }
                 }
+        }
+    }
+
+    fun submitBatchJobs(
+        rawLines: String,
+        platform: String,
+        contentType: String,
+        targetVps: String,
+        onDone: () -> Unit = {},
+    ) {
+        val cfg = _uiState.value.config
+        if (!cfg.isConfigured) return
+        val entries = rawLines.lines().map { it.trim() }.filter { it.isNotBlank() }
+        if (entries.isEmpty()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSubmitting = true, error = null, bannerMessage = null) }
+            var okCount = 0
+            entries.forEach { entry ->
+                val isMagnet = entry.startsWith("magnet:", ignoreCase = true)
+                val isUrl = entry.startsWith("http://", ignoreCase = true) || entry.startsWith("https://", ignoreCase = true)
+                val res = api.submitJob(
+                    config = cfg,
+                    url = if (isUrl) entry else "",
+                    magnet = if (isMagnet) entry else "",
+                    title = if (!isUrl && !isMagnet) entry else "",
+                    platform = platform,
+                    contentType = contentType,
+                    targetVps = targetVps,
+                )
+                if (res.isSuccess) okCount++
+            }
+            _uiState.update {
+                it.copy(
+                    isSubmitting = false,
+                    bannerMessage = "Encolados $okCount de ${entries.size} trabajos",
+                )
+            }
+            refreshSilent(cfg)
+            if (okCount > 0) onDone()
         }
     }
 
@@ -275,6 +317,101 @@ class VpsViewModel(application: Application) : AndroidViewModel(application) {
             buildJsonObject { put("profile", profile) },
             "Perfil NX6R '$profile' aplicado en $targetVps",
         )
+    }
+
+    fun runAllVps() {
+        val nodes = _uiState.value.status?.nodes?.map { it.id }.orEmpty().ifEmpty { listOf("vps1", "vps2", "vps3") }
+        sendBatchCommand(nodes, "run_now", buildJsonObject {}, "Ciclo inmediato enviado a ${nodes.size} VPS")
+    }
+
+    fun purgeAllStalled() {
+        val nodes = _uiState.value.status?.nodes?.map { it.id }.orEmpty().ifEmpty { listOf("vps1", "vps2", "vps3") }
+        sendBatchCommand(nodes, "purge_stalled", buildJsonObject {}, "Purga stalled enviada a ${nodes.size} VPS")
+    }
+
+    fun updateAndRestartAllVps() {
+        val cfg = _uiState.value.config
+        if (!cfg.isConfigured) return
+        val nodes = _uiState.value.status?.nodes?.map { it.id }.orEmpty().ifEmpty { listOf("vps1", "vps2", "vps3") }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSubmitting = true, error = null) }
+            nodes.forEach { vps ->
+                api.sendCommand(cfg, vps, "git_pull", buildJsonObject {})
+                api.sendCommand(cfg, vps, "restart_scheduler", buildJsonObject {})
+            }
+            _uiState.update {
+                it.copy(isSubmitting = false, bannerMessage = "Git pull + reinicio enviado a ${nodes.size} VPS")
+            }
+            refreshSilent(cfg)
+        }
+    }
+
+    fun setEnvVar(targetVps: String, key: String, value: String) {
+        sendCommand(
+            targetVps,
+            "set_env",
+            buildJsonObject {
+                put("key", key)
+                put("value", value)
+            },
+            "$key=$value guardado en $targetVps",
+        )
+    }
+
+    fun testLlm(targetVps: String) {
+        sendCommand(targetVps, "test_llm", buildJsonObject {}, "Prueba LLM enviada a $targetVps")
+    }
+
+    fun loadCatalogItems() {
+        val cfg = _uiState.value.config
+        if (!cfg.isConfigured) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingCatalog = true, error = null) }
+            api.fetchCatalogItems(cfg)
+                .onSuccess { items ->
+                    _uiState.update { it.copy(isLoadingCatalog = false, catalogItems = items) }
+                }
+                .onFailure { err ->
+                    _uiState.update { it.copy(isLoadingCatalog = false, error = err.message) }
+                }
+        }
+    }
+
+    fun deleteCatalogItem(id: String) {
+        val cfg = _uiState.value.config
+        if (!cfg.isConfigured) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSubmitting = true, error = null) }
+            api.deleteCatalogItem(cfg, id)
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(
+                            isSubmitting = false,
+                            catalogItems = it.catalogItems.filterNot { item -> item.id == id },
+                            bannerMessage = "Elemento eliminado del catálogo",
+                        )
+                    }
+                }
+                .onFailure { err ->
+                    _uiState.update { it.copy(isSubmitting = false, error = err.message) }
+                }
+        }
+    }
+
+    private fun sendBatchCommand(
+        targets: List<String>,
+        action: String,
+        payload: kotlinx.serialization.json.JsonObject,
+        successMsg: String,
+    ) {
+        val cfg = _uiState.value.config
+        if (!cfg.isConfigured) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSubmitting = true, error = null) }
+            targets.forEach { vps -> api.sendCommand(cfg, vps, action, payload) }
+            _uiState.update { it.copy(isSubmitting = false, bannerMessage = successMsg) }
+            refreshSilent(cfg)
+        }
     }
 
     private fun sendCommand(

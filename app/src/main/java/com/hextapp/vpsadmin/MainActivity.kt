@@ -121,6 +121,9 @@ private fun VpsAdminRoot(vm: VpsViewModel = viewModel()) {
                     onCancelTorrent = vm::cancelTorrent,
                     onPurgeStalled = vm::purgeStalled,
                     onRunNow = vm::runNow,
+                    onRunAll = vm::runAllVps,
+                    onPurgeAll = vm::purgeAllStalled,
+                    onClearFailedDb = { vm.clearFailedSeen("vps1") },
                 )
                 1 -> AddJobScreen(
                     isSubmitting = state.isSubmitting,
@@ -129,6 +132,11 @@ private fun VpsAdminRoot(vm: VpsViewModel = viewModel()) {
                     searchResults = state.searchResults,
                     onSearch = vm::searchReleases,
                     onClearSearch = vm::clearSearch,
+                    onSubmitBatch = { rawLines, platform, contentType, targetVps ->
+                        vm.submitBatchJobs(rawLines, platform, contentType, targetVps) {
+                            tab = 2
+                        }
+                    },
                     onSubmit = { url, magnet, title, platform, contentType, targetVps ->
                         vm.submitJob(url, magnet, title, platform, contentType, targetVps) {
                             tab = 2
@@ -141,12 +149,15 @@ private fun VpsAdminRoot(vm: VpsViewModel = viewModel()) {
                     onSelectVps = vm::selectLogVps,
                     onRetrySeen = { vm.retryFailed(seenId = it) },
                     onRetryJob = { vm.retryFailed(jobId = it) },
+                    onClearAllFailed = { vm.clearFailedSeen(state.selectedLogVps) },
                 )
                 3 -> ControlScreen(
                     config = state.config,
                     status = state.status,
                     isSubmitting = state.isSubmitting,
                     isCheckingUpdate = state.isCheckingUpdate,
+                    catalogItems = state.catalogItems,
+                    isLoadingCatalog = state.isLoadingCatalog,
                     onSaveConnection = vm::saveConnection,
                     onCheckUpdate = { vm.checkForUpdate(silent = false) },
                     onSetBuckets = vm::setBuckets,
@@ -155,6 +166,11 @@ private fun VpsAdminRoot(vm: VpsViewModel = viewModel()) {
                     onGitPull = vm::gitPull,
                     onClearFailedSeen = vm::clearFailedSeen,
                     onSetNx6rProfile = vm::setNx6rProfile,
+                    onUpdateAndRestartAll = vm::updateAndRestartAllVps,
+                    onSetEnvVar = vm::setEnvVar,
+                    onTestLlm = vm::testLlm,
+                    onLoadCatalog = vm::loadCatalogItems,
+                    onDeleteCatalogItem = vm::deleteCatalogItem,
                 )
             }
         }

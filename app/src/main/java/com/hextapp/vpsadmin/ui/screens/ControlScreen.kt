@@ -11,8 +11,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.hextapp.vpsadmin.BuildConfig
+import com.hextapp.vpsadmin.data.CatalogItem
 import com.hextapp.vpsadmin.data.ConnectionConfig
 import com.hextapp.vpsadmin.data.VpsStatusData
+import com.hextapp.vpsadmin.ui.theme.DangerRed
+import com.hextapp.vpsadmin.ui.theme.PrimaryCyan
 import com.hextapp.vpsadmin.ui.theme.WarningAmber
 
 @Composable
@@ -21,6 +24,8 @@ fun ControlScreen(
     status: VpsStatusData?,
     isSubmitting: Boolean,
     isCheckingUpdate: Boolean,
+    catalogItems: List<CatalogItem>,
+    isLoadingCatalog: Boolean,
     onSaveConnection: (baseUrl: String, token: String) -> Unit,
     onCheckUpdate: () -> Unit,
     onSetBuckets: (vpsId: String, bucketOrder: String) -> Unit,
@@ -29,6 +34,11 @@ fun ControlScreen(
     onGitPull: (vpsId: String) -> Unit,
     onClearFailedSeen: (vpsId: String) -> Unit,
     onSetNx6rProfile: (vpsId: String, profile: String) -> Unit,
+    onUpdateAndRestartAll: () -> Unit,
+    onSetEnvVar: (vpsId: String, key: String, value: String) -> Unit,
+    onTestLlm: (vpsId: String) -> Unit,
+    onLoadCatalog: () -> Unit,
+    onDeleteCatalogItem: (id: String) -> Unit,
 ) {
     var baseUrl by remember(config.baseUrl) { mutableStateOf(config.baseUrl) }
     var token by remember(config.token) { mutableStateOf(config.token) }
@@ -100,9 +110,27 @@ fun ControlScreen(
 
         val nodes = status?.nodes.orEmpty()
         if (nodes.isNotEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Flota (${nodes.size} VPS)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = onUpdateAndRestartAll,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Actualizar y reiniciar los ${nodes.size} VPS")
+                    }
+                }
+            }
+
             Text("Control por VPS", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             nodes.forEach { node ->
                 var bucketInput by remember(node.id, node.bucketOrder) { mutableStateOf(node.bucketOrder) }
+                var envKey by remember(node.id) { mutableStateOf("OLLAMA_MODEL") }
+                var envVal by remember(node.id) { mutableStateOf(node.ollamaModel) }
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
@@ -186,6 +214,88 @@ fun ControlScreen(
                         ) {
                             Text("Limpiar fallos en MongoDB (pipeline_seen)")
                         }
+
+                        HorizontalDivider()
+                        Text("Ajuste remoto (.env) y LLM", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("OLLAMA_MODEL", "NEXUS_LEVEL", "MAX_FILE_SIZE_MB").forEach { k ->
+                                FilterChip(
+                                    selected = envKey == k,
+                                    onClick = { envKey = k },
+                                    label = { Text(k.replace("_", " "), style = MaterialTheme.typography.labelSmall) },
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = envVal,
+                                onValueChange = { envVal = it },
+                                label = { Text(envKey) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Button(
+                                onClick = { onSetEnvVar(node.id, envKey, envVal.trim()) },
+                                enabled = !isSubmitting && envVal.isNotBlank(),
+                            ) {
+                                Text("Guardar")
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = { onTestLlm(node.id) },
+                            enabled = !isSubmitting,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Probar Ollama / LLM en ${node.id.uppercase()}")
+                        }
+                    }
+                }
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("Catálogo reciente (items)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = onLoadCatalog, enabled = !isLoadingCatalog) {
+                        Text(if (isLoadingCatalog) "Cargando..." else "Refrescar")
+                    }
+                }
+                if (catalogItems.isEmpty()) {
+                    Text(
+                        "Pulsa Refrescar para ver los últimos elementos publicados en MongoDB.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    catalogItems.forEach { item ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(item.title.ifBlank { item.id }, fontWeight = FontWeight.Medium)
+                                val mb = item.sizeBytes / (1024.0 * 1024.0)
+                                Text(
+                                    "${item.platform} • ${item.contentType} • ${"%.1f".format(mb)} MiB • ${item.owner}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = PrimaryCyan,
+                                )
+                            }
+                            TextButton(
+                                onClick = { onDeleteCatalogItem(item.id) },
+                                enabled = !isSubmitting,
+                            ) {
+                                Text("Borrar", color = DangerRed)
+                            }
+                        }
+                        HorizontalDivider()
                     }
                 }
             }
