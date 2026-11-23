@@ -260,6 +260,23 @@ class VpsViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun gitPull(targetVps: String) {
+        sendCommand(targetVps, "git_pull", buildJsonObject {}, "Actualización git pull enviada a $targetVps")
+    }
+
+    fun clearFailedSeen(targetVps: String) {
+        sendCommand(targetVps, "clear_failed_seen", buildJsonObject {}, "Limpieza de fallos BD enviada")
+    }
+
+    fun setNx6rProfile(targetVps: String, profile: String) {
+        sendCommand(
+            targetVps,
+            "set_nx6r_profile",
+            buildJsonObject { put("profile", profile) },
+            "Perfil NX6R '$profile' aplicado en $targetVps",
+        )
+    }
+
     private fun sendCommand(
         targetVps: String,
         action: String,

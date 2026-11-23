@@ -26,6 +26,9 @@ fun ControlScreen(
     onSetBuckets: (vpsId: String, bucketOrder: String) -> Unit,
     onRestartScheduler: (vpsId: String) -> Unit,
     onRepackNx6r: (vpsId: String, platform: String, limit: Int) -> Unit,
+    onGitPull: (vpsId: String) -> Unit,
+    onClearFailedSeen: (vpsId: String) -> Unit,
+    onSetNx6rProfile: (vpsId: String, profile: String) -> Unit,
 ) {
     var baseUrl by remember(config.baseUrl) { mutableStateOf(config.baseUrl) }
     var token by remember(config.token) { mutableStateOf(config.token) }
@@ -105,7 +108,11 @@ fun ControlScreen(
                     shape = RoundedCornerShape(16.dp),
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(node.id.uppercase(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            "${node.id.uppercase()} • IA: ${node.ollamaHost.ifBlank { "local" }} • NX6R: ${node.nx6rProfile}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
                         OutlinedTextField(
                             value = bucketInput,
                             onValueChange = { bucketInput = it },
@@ -123,11 +130,28 @@ fun ControlScreen(
                                 Text("Aplicar buckets")
                             }
                             OutlinedButton(
+                                onClick = { onGitPull(node.id) },
+                                enabled = !isSubmitting,
+                            ) {
+                                Text("Git Pull")
+                            }
+                            OutlinedButton(
                                 onClick = { onRestartScheduler(node.id) },
                                 enabled = !isSubmitting,
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningAmber),
                             ) {
                                 Text("Reiniciar")
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("archive", "mobile", "ultra").forEach { prof ->
+                                val selected = node.nx6rProfile == prof
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { onSetNx6rProfile(node.id, prof) },
+                                    label = { Text(prof.uppercase()) },
+                                    enabled = !isSubmitting,
+                                )
                             }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -145,6 +169,22 @@ fun ControlScreen(
                             ) {
                                 Text("NX6R PC (10)")
                             }
+                        }
+                        if (node.nx6rTelemetry.isNotEmpty()) {
+                            val last = node.nx6rTelemetry.last()
+                            val pct = if (last.rawBytes > 0) ((last.rawBytes - last.outBytes) * 100.0 / last.rawBytes) else 0.0
+                            Text(
+                                text = "Último NX6R: ${last.file} (${"%.1f".format(pct)}% ahorro, ${last.chunks} chunks)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = { onClearFailedSeen(node.id) },
+                            enabled = !isSubmitting,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Limpiar fallos en MongoDB (pipeline_seen)")
                         }
                     }
                 }

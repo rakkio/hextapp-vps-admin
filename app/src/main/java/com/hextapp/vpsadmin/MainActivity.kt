@@ -152,6 +152,9 @@ private fun VpsAdminRoot(vm: VpsViewModel = viewModel()) {
                     onSetBuckets = vm::setBuckets,
                     onRestartScheduler = vm::restartScheduler,
                     onRepackNx6r = vm::repackNx6r,
+                    onGitPull = vm::gitPull,
+                    onClearFailedSeen = vm::clearFailedSeen,
+                    onSetNx6rProfile = vm::setNx6rProfile,
                 )
             }
         }

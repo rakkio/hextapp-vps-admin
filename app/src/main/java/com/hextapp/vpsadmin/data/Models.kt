@@ -28,6 +28,15 @@ data class VpsStatusData(
 )
 
 @Serializable
+data class Nx6rTelemetryEntry(
+    val file: String = "",
+    val rawBytes: Long = 0L,
+    val outBytes: Long = 0L,
+    val profile: String = "archive",
+    val chunks: Int = 1,
+)
+
+@Serializable
 data class VpsNode(
     @SerialName("_id") val id: String = "",
     val owner: String = "",
@@ -38,6 +47,9 @@ data class VpsNode(
     val diskTotalGB: Double = 0.0,
     val bucketOrder: String = "",
     val ollamaModel: String = "",
+    val ollamaHost: String = "",
+    val nx6rProfile: String = "archive",
+    val nx6rTelemetry: List<Nx6rTelemetryEntry> = emptyList(),
     val torrents: List<QbtTorrent> = emptyList(),
     val logs: List<String> = emptyList(),
     val lastSeenAt: String = "",
