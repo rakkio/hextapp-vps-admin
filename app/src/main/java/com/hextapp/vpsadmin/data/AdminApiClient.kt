@@ -98,6 +98,35 @@ class AdminApiClient {
         },
     )
 
+    suspend fun searchReleases(
+        config: ConnectionConfig,
+        title: String,
+        platform: String,
+    ): Result<List<SearchCandidate>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = buildJsonObject {
+                put("title", title)
+                put("platform", platform)
+            }
+            val req = Request.Builder()
+                .url("${config.baseUrl}/vps/search")
+                .header("Authorization", "Bearer ${config.token}")
+                .post(payload.toString().toRequestBody(mediaJson))
+                .build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) {
+                    error("HTTP ${resp.code}: ${body.take(180)}")
+                }
+                val parsed = json.decodeFromString<SearchResponse>(body)
+                if (!parsed.success) {
+                    error(parsed.error ?: "Error buscando candidatos")
+                }
+                parsed.data
+            }
+        }
+    }
+
     suspend fun retryFailed(
         config: ConnectionConfig,
         seenId: String? = null,

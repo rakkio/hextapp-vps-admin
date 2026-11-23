@@ -88,3 +88,22 @@ data class SeenFailedItem(
     val error: String? = null,
     val updatedAt: String? = null,
 )
+
+@Serializable
+data class SearchResponse(
+    val success: Boolean = false,
+    val data: List<SearchCandidate> = emptyList(),
+    val error: String? = null,
+)
+
+@Serializable
+data class SearchCandidate(
+    val name: String = "",
+    val source: String = "",
+    val seeders: Int = 0,
+    val size: String = "",
+    val url: String? = null,
+    val magnet: String? = null,
+    val matchesPlatform: Boolean = true,
+    val warning: String? = null,
+)

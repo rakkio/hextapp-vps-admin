@@ -124,6 +124,11 @@ private fun VpsAdminRoot(vm: VpsViewModel = viewModel()) {
                 )
                 1 -> AddJobScreen(
                     isSubmitting = state.isSubmitting,
+                    isSearching = state.isSearching,
+                    hasSearched = state.hasSearched,
+                    searchResults = state.searchResults,
+                    onSearch = vm::searchReleases,
+                    onClearSearch = vm::clearSearch,
                     onSubmit = { url, magnet, title, platform, contentType, targetVps ->
                         vm.submitJob(url, magnet, title, platform, contentType, targetVps) {
                             tab = 2

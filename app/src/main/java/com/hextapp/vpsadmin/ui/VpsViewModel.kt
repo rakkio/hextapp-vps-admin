@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.hextapp.vpsadmin.data.AdminApiClient
 import com.hextapp.vpsadmin.data.AvailableUpdate
 import com.hextapp.vpsadmin.data.ConnectionConfig
+import com.hextapp.vpsadmin.data.SearchCandidate
 import com.hextapp.vpsadmin.data.SettingsStore
 import com.hextapp.vpsadmin.data.UpdateChecker
 import com.hextapp.vpsadmin.data.VpsStatusData
@@ -30,6 +31,9 @@ data class DashboardUiState(
     val availableUpdate: AvailableUpdate? = null,
     val isCheckingUpdate: Boolean = false,
     val downloadProgress: Int? = null,
+    val isSearching: Boolean = false,
+    val searchResults: List<SearchCandidate> = emptyList(),
+    val hasSearched: Boolean = false,
 )
 
 class VpsViewModel(application: Application) : AndroidViewModel(application) {
@@ -167,6 +171,29 @@ class VpsViewModel(application: Application) : AndroidViewModel(application) {
             .onFailure { err ->
                 _uiState.update { it.copy(error = err.message ?: "Error de red Tailscale") }
             }
+    }
+
+    fun clearSearch() {
+        _uiState.update { it.copy(searchResults = emptyList(), hasSearched = false) }
+    }
+
+    fun searchReleases(title: String, platform: String) {
+        val cfg = _uiState.value.config
+        if (!cfg.isConfigured || title.isBlank()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSearching = true, error = null, hasSearched = false) }
+            api.searchReleases(cfg, title.trim(), platform)
+                .onSuccess { list ->
+                    _uiState.update {
+                        it.copy(isSearching = false, searchResults = list, hasSearched = true)
+                    }
+                }
+                .onFailure { err ->
+                    _uiState.update {
+                        it.copy(isSearching = false, error = "Error buscando: ${err.message}", hasSearched = true)
+                    }
+                }
+        }
     }
 
     fun submitJob(
