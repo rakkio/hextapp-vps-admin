@@ -171,14 +171,15 @@ private fun VpsNodeCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)),
+        shape = RoundedCornerShape(22.dp),
         border = BorderStroke(
             1.dp,
-            Brush.linearGradient(
+            Brush.verticalGradient(
                 listOf(
-                    if (isOnline) PrimaryCyan.copy(alpha = 0.45f) else DangerRed.copy(alpha = 0.5f),
-                    AccentPurple.copy(alpha = 0.28f),
+                    androidx.compose.ui.graphics.Color.White.copy(alpha = 0.22f),
+                    if (isOnline) PrimaryCyan.copy(alpha = 0.42f) else DangerRed.copy(alpha = 0.5f),
+                    AccentPurple.copy(alpha = 0.25f),
                 )
             )
         ),
