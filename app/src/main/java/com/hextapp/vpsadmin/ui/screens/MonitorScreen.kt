@@ -1,5 +1,6 @@
 package com.hextapp.vpsadmin.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,18 +10,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hextapp.vpsadmin.data.QbtTorrent
 import com.hextapp.vpsadmin.data.VpsNode
 import com.hextapp.vpsadmin.data.VpsStatusData
+import com.hextapp.vpsadmin.ui.theme.AccentPurple
 import com.hextapp.vpsadmin.ui.theme.DangerRed
 import com.hextapp.vpsadmin.ui.theme.PrimaryCyan
 import com.hextapp.vpsadmin.ui.theme.SecondaryEmerald
@@ -36,6 +40,7 @@ fun MonitorScreen(
     onRunAll: () -> Unit,
     onPurgeAll: () -> Unit,
     onClearFailedDb: () -> Unit,
+    onRepackNx6r: (vpsId: String) -> Unit = {},
 ) {
     val nodes = status?.nodes.orEmpty()
     val uploadedCount = status?.seenCounts?.get("uploaded") ?: 0
@@ -123,6 +128,7 @@ fun MonitorScreen(
                     onCancelTorrent = { hash -> onCancelTorrent(node.id, hash) },
                     onPurgeStalled = { onPurgeStalled(node.id) },
                     onRunNow = { onRunNow(node.id) },
+                    onRepackNx6r = { onRepackNx6r(node.id) },
                 )
             }
         }
@@ -156,6 +162,7 @@ private fun VpsNodeCard(
     onCancelTorrent: (String) -> Unit,
     onPurgeStalled: () -> Unit,
     onRunNow: () -> Unit,
+    onRepackNx6r: () -> Unit,
 ) {
     val isOnline = node.status == "online"
     val ramFrac = if (node.memTotalMB > 0) (node.memUsedMB.toFloat() / node.memTotalMB).coerceIn(0f, 1f) else 0f
@@ -165,7 +172,16 @@ private fun VpsNodeCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(
+            1.dp,
+            Brush.linearGradient(
+                listOf(
+                    if (isOnline) PrimaryCyan.copy(alpha = 0.45f) else DangerRed.copy(alpha = 0.5f),
+                    AccentPurple.copy(alpha = 0.28f),
+                )
+            )
+        ),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -199,6 +215,9 @@ private fun VpsNodeCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     IconButton(onClick = onRunNow, modifier = Modifier.size(34.dp)) {
                         Icon(Icons.Default.PlayArrow, contentDescription = "Ejecutar ciclo", tint = SecondaryEmerald)
+                    }
+                    IconButton(onClick = onRepackNx6r, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Default.Layers, contentDescription = "Repack NX6R", tint = PrimaryCyan)
                     }
                     IconButton(onClick = onPurgeStalled, modifier = Modifier.size(34.dp)) {
                         Icon(Icons.Default.CleaningServices, contentDescription = "Purgar parados", tint = WarningAmber)

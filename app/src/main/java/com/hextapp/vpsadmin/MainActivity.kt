@@ -3,20 +3,31 @@ package com.hextapp.vpsadmin
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.PauseCircleOutline
+import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hextapp.vpsadmin.ui.VpsViewModel
@@ -24,8 +35,10 @@ import com.hextapp.vpsadmin.ui.screens.AddJobScreen
 import com.hextapp.vpsadmin.ui.screens.ControlScreen
 import com.hextapp.vpsadmin.ui.screens.LogsQueueScreen
 import com.hextapp.vpsadmin.ui.screens.MonitorScreen
+import com.hextapp.vpsadmin.ui.theme.AccentPurple
 import com.hextapp.vpsadmin.ui.theme.DangerRed
 import com.hextapp.vpsadmin.ui.theme.HextappVpsAdminTheme
+import com.hextapp.vpsadmin.ui.theme.PrimaryCyan
 import com.hextapp.vpsadmin.ui.theme.SecondaryEmerald
 
 class MainActivity : ComponentActivity() {
@@ -49,45 +62,112 @@ private fun VpsAdminRoot(vm: VpsViewModel = viewModel()) {
         if (!state.config.isConfigured) tab = 3
     }
 
+    val nodes = state.status?.nodes.orEmpty()
+    val onlineCount = nodes.count { it.status == "online" }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Hextapp VPS Admin") },
-                actions = {
-                    if (state.config.isConfigured) {
-                        IconButton(onClick = { vm.refreshNow() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Actualizar")
+            Column {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                    title = {
+                        Column {
+                            Text("Hextapp VPS Admin", fontWeight = FontWeight.Bold)
+                            if (state.config.isConfigured) {
+                                Text(
+                                    text = "$onlineCount/${nodes.size.coerceAtLeast(3)} nodos online • ${if (state.autoRefreshEnabled) "Auto 5s" else "Pausado"}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (onlineCount > 0) SecondaryEmerald else PrimaryCyan,
+                                )
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                    actions = {
+                        if (state.config.isConfigured) {
+                            IconButton(onClick = { vm.toggleAutoRefresh() }) {
+                                Icon(
+                                    imageVector = if (state.autoRefreshEnabled) Icons.Default.PauseCircleOutline else Icons.Default.PlayCircleOutline,
+                                    contentDescription = "Auto-refresh",
+                                    tint = if (state.autoRefreshEnabled) SecondaryEmerald else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            IconButton(onClick = { vm.refreshNow() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Actualizar", tint = PrimaryCyan)
+                            }
+                        }
+                    },
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color.Transparent, AccentPurple.copy(alpha = 0.65f), PrimaryCyan.copy(alpha = 0.65f), Color.Transparent)
+                            )
+                        )
+                )
+            }
         },
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = tab == 0,
-                    onClick = { tab = 0 },
-                    icon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
-                    label = { Text("VPS Live") },
-                )
-                NavigationBarItem(
-                    selected = tab == 1,
-                    onClick = { tab = 1 },
-                    icon = { Icon(Icons.Default.AddCircleOutline, contentDescription = null) },
-                    label = { Text("Añadir") },
-                )
-                NavigationBarItem(
-                    selected = tab == 2,
-                    onClick = { tab = 2 },
-                    icon = { Icon(Icons.Default.ListAlt, contentDescription = null) },
-                    label = { Text("Cola/Logs") },
-                )
-                NavigationBarItem(
-                    selected = tab == 3,
-                    onClick = { tab = 3 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("Control") },
-                )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(26.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                    tonalElevation = 8.dp,
+                    shadowElevation = 12.dp,
+                    border = BorderStroke(
+                        1.dp,
+                        Brush.horizontalGradient(
+                            listOf(AccentPurple.copy(alpha = 0.55f), PrimaryCyan.copy(alpha = 0.4f), AccentPurple.copy(alpha = 0.55f))
+                        )
+                    ),
+                ) {
+                    NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp) {
+                        val navColors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color.White,
+                            selectedTextColor = PrimaryCyan,
+                            indicatorColor = AccentPurple.copy(alpha = 0.30f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        NavigationBarItem(
+                            selected = tab == 0,
+                            colors = navColors,
+                            onClick = { tab = 0 },
+                            icon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
+                            label = { Text("VPS Live") },
+                        )
+                        NavigationBarItem(
+                            selected = tab == 1,
+                            colors = navColors,
+                            onClick = { tab = 1 },
+                            icon = { Icon(Icons.Default.AddCircleOutline, contentDescription = null) },
+                            label = { Text("Añadir") },
+                        )
+                        NavigationBarItem(
+                            selected = tab == 2,
+                            colors = navColors,
+                            onClick = { tab = 2 },
+                            icon = { Icon(Icons.Default.ListAlt, contentDescription = null) },
+                            label = { Text("Cola/Logs") },
+                        )
+                        NavigationBarItem(
+                            selected = tab == 3,
+                            colors = navColors,
+                            onClick = { tab = 3 },
+                            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                            label = { Text("Control") },
+                        )
+                    }
+                }
             }
         },
     ) { padding ->
@@ -124,6 +204,7 @@ private fun VpsAdminRoot(vm: VpsViewModel = viewModel()) {
                     onRunAll = vm::runAllVps,
                     onPurgeAll = vm::purgeAllStalled,
                     onClearFailedDb = { vm.clearFailedSeen("vps1") },
+                    onRepackNx6r = vm::repackNx6r,
                 )
                 1 -> AddJobScreen(
                     isSubmitting = state.isSubmitting,

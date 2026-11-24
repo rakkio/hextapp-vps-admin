@@ -37,6 +37,7 @@ data class DashboardUiState(
     val hasSearched: Boolean = false,
     val catalogItems: List<CatalogItem> = emptyList(),
     val isLoadingCatalog: Boolean = false,
+    val autoRefreshEnabled: Boolean = true,
 )
 
 class VpsViewModel(application: Application) : AndroidViewModel(application) {
@@ -61,11 +62,15 @@ class VpsViewModel(application: Application) : AndroidViewModel(application) {
             while (isActive) {
                 delay(5000)
                 val cfg = _uiState.value.config
-                if (cfg.isConfigured && !_uiState.value.isLoading) {
+                if (cfg.isConfigured && _uiState.value.autoRefreshEnabled && !_uiState.value.isLoading) {
                     refreshSilent(cfg)
                 }
             }
         }
+    }
+
+    fun toggleAutoRefresh() {
+        _uiState.update { it.copy(autoRefreshEnabled = !it.autoRefreshEnabled) }
     }
 
     fun clearMessages() {
